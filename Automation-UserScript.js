@@ -20,7 +20,7 @@ var disableFeaturesByDefault = false;
 // Set this to true if you want no setting to be enabled by default
 var disableSettingsByDefault = false;
 
-var pokeclickerAutomationReleaseUrl = "https://raw.githubusercontent.com/Farigh/pokeclicker-automation/" + releaseLabel + "/";
+var pokeclickerAutomationReleaseUrl = "https://raw.githubusercontent.com/Aleqsd/pokeclicker-automation/" + releaseLabel + "/";
 
 // Github only serves plain-text so we can't load it as a script object directly
 let xmlhttp = new XMLHttpRequest();
