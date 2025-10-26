@@ -18,6 +18,7 @@ class Automation
     static Notifications = AutomationNotifications;
     static Menu = AutomationMenu;
     static Shop = AutomationShop;
+    static BattleItems = AutomationBattleItems;
     static Trivia = AutomationTrivia;
     static Underground = AutomationUnderground;
     static Utils = AutomationUtils;
@@ -70,6 +71,7 @@ class Automation
                     this.Underground.initialize(initStep);
                     this.Farm.initialize(initStep);
                     this.Shop.initialize(initStep);
+                    this.BattleItems.initialize(initStep);
                     this.Items.initialize(initStep);
                     this.Notifications.initialize(initStep);
 
