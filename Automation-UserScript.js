@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         Pokeclicker Automation
-// @namespace    https://github.com/Farigh/pokeclicker-automation/
+// @name         Pokeclicker Automation (Aleqsd)
+// @namespace    https://github.com/Aleqsd/pokeclicker-automation/
 // @version      0.1
 // @description  Automation for pokeclicker.com
 // @author       GARCIN David
