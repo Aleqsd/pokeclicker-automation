@@ -69,35 +69,37 @@ class AutomationBattleItems
 
         Automation.Menu.addSeparator(this.__internal__container);
 
-        const titleDiv = Automation.Menu.createTitleElement("Battle Items");
-        this.__internal__container.appendChild(titleDiv);
-
         const tooltip = "Automatically keeps battle items active by reusing them when their timer runs low."
                       + Automation.Menu.TooltipSeparator
-                      + "Select the stack size (x10 or x100) that should be used whenever an item refreshes.";
+                      + "Advanced settings let you pick whether to refresh with x10 or x100 items.";
         const toggleButton =
-            Automation.Menu.addAutomationButton("Auto battle items", this.Settings.FeatureEnabled, tooltip, this.__internal__container);
+            Automation.Menu.addAutomationButton("Battle items", this.Settings.FeatureEnabled, tooltip, this.__internal__container);
         toggleButton.addEventListener("click", this.__internal__toggleAutoBattleItems.bind(this), false);
 
+        const settingsPanel = Automation.Menu.addSettingPanel(this.__internal__container);
+
+        const panelTitle = Automation.Menu.createTitleElement("Battle item settings");
+        panelTitle.style.marginBottom = "8px";
+        settingsPanel.appendChild(panelTitle);
+
         const amountRow = document.createElement("div");
-        amountRow.style.display = "flex";
+        amountRow.style.display = "inline-flex";
         amountRow.style.alignItems = "center";
-        amountRow.style.justifyContent = "space-between";
-        amountRow.style.paddingLeft = "10px";
-        amountRow.style.paddingRight = "10px";
-        amountRow.style.marginTop = "4px";
-        this.__internal__container.appendChild(amountRow);
+        amountRow.style.width = "100%";
+        amountRow.style.paddingLeft = "5px";
+        amountRow.style.paddingRight = "5px";
+        settingsPanel.appendChild(amountRow);
 
         const amountLabel = document.createElement("span");
-        amountLabel.textContent = "Use amount";
+        amountLabel.textContent = "Refresh with";
+        amountLabel.style.paddingRight = "6px";
         amountRow.appendChild(amountLabel);
 
         amountRow.classList.add("hasAutomationTooltip");
         amountRow.setAttribute("automation-tooltip-text", "Pick how many items should be activated each time the automation refreshes the buff.");
 
         this.__internal__amountSelect = Automation.Menu.createDropDownListElement("BattleItems-UseAmountSelect");
-        this.__internal__amountSelect.style.width = "110px";
-        this.__internal__amountSelect.style.marginBottom = "2px";
+        this.__internal__amountSelect.style.width = "120px";
 
         this.__internal__addAmountOption(10);
         this.__internal__addAmountOption(100);
@@ -113,6 +115,11 @@ class AutomationBattleItems
             }.bind(this);
 
         amountRow.appendChild(this.__internal__amountSelect);
+
+        const amountSuffix = document.createElement("span");
+        amountSuffix.textContent = "items";
+        amountSuffix.style.paddingLeft = "6px";
+        amountRow.appendChild(amountSuffix);
     }
 
     /**
