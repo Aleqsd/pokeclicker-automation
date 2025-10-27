@@ -8,7 +8,8 @@ class AutomationUnderground
 {
     static Settings = {
                           FeatureEnabled: "Mining-Enabled",
-                          SafeBombs: "Mining-SafeBombs"
+                          SafeBombs: "Mining-SafeBombs",
+                          BatteryDischarge: "Mining-BatteryDischarge"
                       };
 
     /**
@@ -23,6 +24,7 @@ class AutomationUnderground
         {
             // Enable safe bombs usage by default
             Automation.Utils.LocalStorage.setDefaultValue(this.Settings.SafeBombs, true);
+            Automation.Utils.LocalStorage.setDefaultValue(this.Settings.BatteryDischarge, true);
 
             this.__internal__buildMenu();
         }
@@ -115,7 +117,7 @@ class AutomationUnderground
         const autoMiningTooltip = "Automatically mine in the Underground"
                                 + Automation.Menu.TooltipSeparator
                                 + "Survey will be used as soon as available, unless all items were already found\n"
-                                + "If equipped, the battery discharge will be used as soon as charged\n"
+                                + "If equipped, the battery discharge can be used as soon as charged\n"
                                 + "Bombs will be used as soon as available, unless all items were already found\n"
                                 + "If the bomb's durability is maxed-out, it will be used regardless,\n"
                                 + "unless the tool reached infinite use\n"
@@ -139,6 +141,13 @@ class AutomationUnderground
                                + "with a visible item. Enable at your own risks";
         Automation.Menu.addLabeledAdvancedSettingsToggleButton(
             "Only use bombs when no item is visible", this.Settings.SafeBombs, safeBombsTooltip, miningSettingPanel);
+
+        const batteryDischargeTooltip = "If enabled, uses the battery discharge as soon as it is fully charged"
+                                       + Automation.Menu.TooltipSeparator
+                                       + "The automation only checks for the battery when mining actions are processed";
+        Automation.Menu.addLabeledAdvancedSettingsToggleButton(
+            "Automatically use the battery discharge when fully charged", this.Settings.BatteryDischarge,
+            batteryDischargeTooltip, miningSettingPanel);
     }
 
     /**
@@ -197,7 +206,7 @@ class AutomationUnderground
      *
      * The following strategy is used:
      *   - Use a survey if available, unless all items were already found
-     *   - Use the batterie discharge if available
+     *   - Use the battery discharge if available (when enabled)
      *   - Use a bomb if available, unless all items were already found
      *   - Use a bomb regardless, if its durability is maxed out, unless the tool reached infinite use
      *   - Tries to use the best possible tool to:
@@ -212,6 +221,7 @@ class AutomationUnderground
 
         const centerMostCellCoord = { x: App.game.underground.mine.width / 2, y: App.game.underground.mine.height / 2 };
         const areAllItemFound = App.game.underground.mine.itemsPartiallyFound == App.game.underground.mine.itemsBuried;
+        const shouldUseBatteryDischarge = (Automation.Utils.LocalStorage.getValue(this.Settings.BatteryDischarge) === "true");
 
         // Try to use the Survey, unless all items were already found
         if (!areAllItemFound && App.game.underground.tools.getTool(UndergroundToolType.Survey).canUseTool())
@@ -222,7 +232,7 @@ class AutomationUnderground
         }
 
         // Try to use the battery discharge
-        if (!actionOccured && App.game.oakItems.isActive(OakItemType.Cell_Battery)
+        if (!actionOccured && shouldUseBatteryDischarge && App.game.oakItems.isActive(OakItemType.Cell_Battery)
             && (App.game.underground.battery.charges == App.game.underground.battery.maxCharges))
         {
             App.game.underground.battery.discharge();
