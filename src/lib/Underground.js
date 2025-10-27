@@ -274,62 +274,60 @@ class AutomationUnderground
 
     static __internal__tryUseBatteryDischarge(shouldUseBatteryDischarge, currentBatteryCharges, maxBatteryCharges)
     {
-        if (!shouldUseBatteryDischarge
-            || (currentBatteryCharges == null)
-            || (maxBatteryCharges == null)
-            || (maxBatteryCharges <= 0)
-            || (currentBatteryCharges < maxBatteryCharges))
+        if (!shouldUseBatteryDischarge)
         {
             return false;
         }
 
-        let isBatteryActive = false;
-        if ((App.game.oakItems != null) && (typeof App.game.oakItems.isActive === "function"))
-        {
-            isBatteryActive = App.game.oakItems.isActive(OakItemType.Cell_Battery);
-        }
-        else if (App.game.oakItems?.itemList?.[OakItemType.Cell_Battery] != null)
-        {
-            const itemData = App.game.oakItems.itemList[OakItemType.Cell_Battery];
-            const isActiveValue = this.__internal__getObservableValue(itemData.isActive);
-            isBatteryActive = (isActiveValue === true);
-        }
+        const battery = App.game.underground?.battery;
+        const hasValidChargeData = (currentBatteryCharges != null)
+                                && (maxBatteryCharges != null)
+                                && (maxBatteryCharges > 0);
 
-        if (!isBatteryActive)
+        if (hasValidChargeData && (currentBatteryCharges < maxBatteryCharges))
         {
             return false;
         }
-
-        const wasMineModalVisible = this.__internal__isMineModalVisible();
-        const openedMineModal = !wasMineModalVisible && this.__internal__openMineModal();
 
         let dischargePerformed = false;
-        const chargesBefore = currentBatteryCharges;
+        let chargesBefore = currentBatteryCharges;
 
-        if (typeof App.game.underground?.battery?.discharge === "function")
+        if ((battery != null) && (typeof battery.discharge === "function"))
         {
-            const result = App.game.underground.battery.discharge();
+            const result = battery.discharge();
             if (result !== false)
             {
                 dischargePerformed = true;
             }
             else
             {
-                const chargesAfter = this.__internal__getObservableValue(App.game.underground.battery?.charges);
-                dischargePerformed = (chargesAfter != null) && (chargesAfter < chargesBefore);
+                const chargesAfter = this.__internal__getObservableValue(battery?.charges);
+                if ((chargesAfter != null) && (chargesBefore != null) && (chargesAfter < chargesBefore))
+                {
+                    dischargePerformed = true;
+                }
+                else
+                {
+                    chargesBefore = chargesAfter;
+                }
             }
         }
 
         if (!dischargePerformed)
         {
-            this.__internal__triggerBatteryShortcut();
-            const shortcutCharges = this.__internal__getObservableValue(App.game.underground.battery?.charges);
-            dischargePerformed = (shortcutCharges != null) && (shortcutCharges < chargesBefore);
+            if (this.__internal__clickMineDischargeButton(chargesBefore))
+            {
+                dischargePerformed = true;
+            }
         }
 
-        if (openedMineModal)
+        if (!dischargePerformed && this.__internal__triggerBatteryShortcut())
         {
-            this.__internal__closeMineModal();
+            const shortcutCharges = this.__internal__getObservableValue(App.game.underground?.battery?.charges);
+            if ((shortcutCharges != null) && (chargesBefore != null) && (shortcutCharges < chargesBefore))
+            {
+                dischargePerformed = true;
+            }
         }
 
         return dischargePerformed;
@@ -806,108 +804,67 @@ class AutomationUnderground
         return observable;
     }
 
-    static __internal__isMineModalVisible()
+    static __internal__clickMineDischargeButton(previousCharges)
     {
         if (typeof document === "undefined")
         {
             return false;
         }
 
-        const mineModal = document.getElementById("mineModal");
-        if (mineModal == null)
+        const selectors = [
+                               '#mineModal button[data-bind*="discharge"]',
+                               '#mineModal button[data-bind*="Discharge"]',
+                               '#mineModal button[data-automation-id="mine-discharge"]',
+                               '#mineModal button.mine-discharge'
+                           ];
+
+        let dischargeButton = null;
+        for (const selector of selectors)
+        {
+            dischargeButton = document.querySelector(selector);
+            if (dischargeButton != null)
+            {
+                break;
+            }
+        }
+
+        if (!(dischargeButton instanceof HTMLElement))
+        {
+            const fallbackButtons = document.querySelectorAll("#mineModal button");
+            for (const button of fallbackButtons)
+            {
+                const btnText = (button.textContent || "").toLowerCase();
+                const dataBind = (button.getAttribute("data-bind") || "").toLowerCase();
+                const dataI18n = (button.getAttribute("data-i18n") || "").toLowerCase();
+
+                if (btnText.includes("discharge") || dataBind.includes("discharge") || dataI18n.includes("discharge"))
+                {
+                    dischargeButton = button;
+                    break;
+                }
+            }
+
+            if (!(dischargeButton instanceof HTMLElement))
+            {
+                return false;
+            }
+        }
+
+        if (dischargeButton.disabled || dischargeButton.classList.contains("disabled"))
         {
             return false;
         }
 
-        if (mineModal.classList.contains("show"))
+        dischargeButton.click();
+
+        const chargesAfter = this.__internal__getObservableValue(App.game.underground?.battery?.charges);
+
+        if ((previousCharges != null) && (chargesAfter != null))
         {
-            return true;
+            return chargesAfter < previousCharges;
         }
 
-        if ((typeof window !== "undefined") && (typeof window.getComputedStyle === "function"))
-        {
-            const computedStyle = window.getComputedStyle(mineModal);
-            if (computedStyle != null)
-            {
-                return (computedStyle.display !== "none") && (computedStyle.visibility !== "hidden") && (computedStyle.opacity !== "0");
-            }
-        }
-
-        return mineModal.style.display === "block";
-    }
-
-    static __internal__openMineModal()
-    {
-        if (typeof document === "undefined")
-        {
-            return false;
-        }
-
-        const mineModal = document.getElementById("mineModal");
-        if (mineModal == null)
-        {
-            return false;
-        }
-
-        let opened = false;
-
-        if ((typeof window !== "undefined") && (typeof window.$ === "function"))
-        {
-            const jqueryInstance = window.$;
-            if ((jqueryInstance != null) && (jqueryInstance.fn != null) && (typeof jqueryInstance.fn.modal === "function"))
-            {
-                jqueryInstance(mineModal).modal("show");
-                opened = true;
-            }
-        }
-
-        if (!opened)
-        {
-            const trigger = document.querySelector('[data-target="#mineModal"], [data-bs-target="#mineModal"]');
-            if (trigger instanceof HTMLElement)
-            {
-                trigger.click();
-                opened = true;
-            }
-        }
-
-        return opened;
-    }
-
-    static __internal__closeMineModal()
-    {
-        if (typeof document === "undefined")
-        {
-            return;
-        }
-
-        const mineModal = document.getElementById("mineModal");
-        if (mineModal == null)
-        {
-            return;
-        }
-
-        let closed = false;
-
-        if ((typeof window !== "undefined") && (typeof window.$ === "function"))
-        {
-            const jqueryInstance = window.$;
-            if ((jqueryInstance != null) && (jqueryInstance.fn != null) && (typeof jqueryInstance.fn.modal === "function"))
-            {
-                jqueryInstance(mineModal).modal("hide");
-                closed = true;
-            }
-        }
-
-        if (!closed)
-        {
-            const dismissButton =
-                mineModal.querySelector('[data-dismiss="modal"], [data-bs-dismiss="modal"], .modal-header .close, button.close');
-            if (dismissButton instanceof HTMLElement)
-            {
-                dismissButton.click();
-            }
-        }
+        return true;
     }
 
     /**
@@ -930,24 +887,45 @@ class AutomationUnderground
             bubbles: true
         };
 
-        const downEvent = new KeyboardEvent("keydown", shortcutOptions);
-        const upEvent = new KeyboardEvent("keyup", shortcutOptions);
-
-        try
+        const uniqueTargets = new Set();
+        if (document.activeElement != null)
         {
-            Object.defineProperty(downEvent, "keyCode", { get: function() { return 68; } });
-            Object.defineProperty(upEvent, "keyCode", { get: function() { return 68; } });
-            Object.defineProperty(downEvent, "which", { get: function() { return 68; } });
-            Object.defineProperty(upEvent, "which", { get: function() { return 68; } });
+            uniqueTargets.add(document.activeElement);
         }
-        catch (err)
+        if ((document.body != null) && (document.body !== document.activeElement))
         {
-            // Ignore any errors when redefining read-only properties
+            uniqueTargets.add(document.body);
+        }
+        uniqueTargets.add(document);
+
+        if (typeof window !== "undefined")
+        {
+            uniqueTargets.add(window);
         }
 
-        const dispatchTarget = document.activeElement || document.body || document;
-        dispatchTarget.dispatchEvent(downEvent);
-        dispatchTarget.dispatchEvent(upEvent);
+        const dispatchKeyEvent = function(target, type)
+        {
+            const event = new KeyboardEvent(type, shortcutOptions);
+
+            try
+            {
+                Object.defineProperty(event, "keyCode", { get: function() { return 68; } });
+                Object.defineProperty(event, "which", { get: function() { return 68; } });
+            }
+            catch (err)
+            {
+                // Ignore errors redefining read-only properties
+            }
+
+            target.dispatchEvent(event);
+        };
+
+        for (const target of uniqueTargets)
+        {
+            dispatchKeyEvent(target, "keydown");
+            dispatchKeyEvent(target, "keyup");
+        }
+
         return true;
     }
 }
