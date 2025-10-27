@@ -223,12 +223,8 @@ class AutomationUnderground
         const areAllItemFound = App.game.underground.mine.itemsPartiallyFound == App.game.underground.mine.itemsBuried;
         const batteryDischargeSetting = Automation.Utils.LocalStorage.getValue(this.Settings.BatteryDischarge);
         const shouldUseBatteryDischarge = (batteryDischargeSetting !== "false");
-        const getObservableValue = function(observable)
-        {
-            return (typeof observable === "function") ? observable() : observable;
-        };
-        const currentBatteryCharges = getObservableValue(App.game.underground.battery?.charges);
-        const maxBatteryCharges = getObservableValue(App.game.underground.battery?.maxCharges);
+        const currentBatteryCharges = this.__internal__getObservableValue(App.game.underground.battery?.charges);
+        const maxBatteryCharges = this.__internal__getObservableValue(App.game.underground.battery?.maxCharges);
 
         // Try to use the Survey, unless all items were already found
         if (!areAllItemFound && App.game.underground.tools.getTool(UndergroundToolType.Survey).canUseTool())
@@ -239,31 +235,10 @@ class AutomationUnderground
         }
 
         // Try to use the battery discharge
-        if (!actionOccured && shouldUseBatteryDischarge && App.game.oakItems.isActive(OakItemType.Cell_Battery)
-            && (currentBatteryCharges != null) && (maxBatteryCharges != null) && (maxBatteryCharges > 0)
-            && (currentBatteryCharges >= maxBatteryCharges))
+        if (!actionOccured
+            && this.__internal__tryUseBatteryDischarge(shouldUseBatteryDischarge, currentBatteryCharges, maxBatteryCharges))
         {
-            let dischargePerformed = false;
-            const chargesBefore = currentBatteryCharges;
-
-            if (typeof App.game.underground?.battery?.discharge === "function")
-            {
-                App.game.underground.battery.discharge();
-                const chargesAfter = getObservableValue(App.game.underground.battery?.charges);
-                dischargePerformed = (chargesAfter != null) && (chargesAfter < chargesBefore);
-            }
-
-            if (!dischargePerformed)
-            {
-                this.__internal__triggerBatteryShortcut();
-                const shortcutCharges = getObservableValue(App.game.underground.battery?.charges);
-                dischargePerformed = (shortcutCharges != null) && (shortcutCharges < chargesBefore);
-            }
-
-            if (dischargePerformed)
-            {
-                actionOccured = true;
-            }
+            actionOccured = true;
         }
 
         // Try to use the Bomb, unless all items were already found
@@ -295,6 +270,69 @@ class AutomationUnderground
         }
 
         return actionOccured;
+    }
+
+    static __internal__tryUseBatteryDischarge(shouldUseBatteryDischarge, currentBatteryCharges, maxBatteryCharges)
+    {
+        if (!shouldUseBatteryDischarge
+            || (currentBatteryCharges == null)
+            || (maxBatteryCharges == null)
+            || (maxBatteryCharges <= 0)
+            || (currentBatteryCharges < maxBatteryCharges))
+        {
+            return false;
+        }
+
+        let isBatteryActive = false;
+        if ((App.game.oakItems != null) && (typeof App.game.oakItems.isActive === "function"))
+        {
+            isBatteryActive = App.game.oakItems.isActive(OakItemType.Cell_Battery);
+        }
+        else if (App.game.oakItems?.itemList?.[OakItemType.Cell_Battery] != null)
+        {
+            const itemData = App.game.oakItems.itemList[OakItemType.Cell_Battery];
+            const isActiveValue = this.__internal__getObservableValue(itemData.isActive);
+            isBatteryActive = (isActiveValue === true);
+        }
+
+        if (!isBatteryActive)
+        {
+            return false;
+        }
+
+        const wasMineModalVisible = this.__internal__isMineModalVisible();
+        const openedMineModal = !wasMineModalVisible && this.__internal__openMineModal();
+
+        let dischargePerformed = false;
+        const chargesBefore = currentBatteryCharges;
+
+        if (typeof App.game.underground?.battery?.discharge === "function")
+        {
+            const result = App.game.underground.battery.discharge();
+            if (result !== false)
+            {
+                dischargePerformed = true;
+            }
+            else
+            {
+                const chargesAfter = this.__internal__getObservableValue(App.game.underground.battery?.charges);
+                dischargePerformed = (chargesAfter != null) && (chargesAfter < chargesBefore);
+            }
+        }
+
+        if (!dischargePerformed)
+        {
+            this.__internal__triggerBatteryShortcut();
+            const shortcutCharges = this.__internal__getObservableValue(App.game.underground.battery?.charges);
+            dischargePerformed = (shortcutCharges != null) && (shortcutCharges < chargesBefore);
+        }
+
+        if (openedMineModal)
+        {
+            this.__internal__closeMineModal();
+        }
+
+        return dischargePerformed;
     }
 
     /**
@@ -749,6 +787,127 @@ class AutomationUnderground
     {
         return (Automation.Utils.LocalStorage.getValue(this.Settings.SafeBombs) !== "true")
             || ((App.game.underground.mine?.itemsPartiallyFound - App.game.underground.mine?.itemsFound) == 0);
+    }
+
+    static __internal__getObservableValue(observable)
+    {
+        if (typeof observable === "function")
+        {
+            try
+            {
+                return observable();
+            }
+            catch (err)
+            {
+                return null;
+            }
+        }
+
+        return observable;
+    }
+
+    static __internal__isMineModalVisible()
+    {
+        if (typeof document === "undefined")
+        {
+            return false;
+        }
+
+        const mineModal = document.getElementById("mineModal");
+        if (mineModal == null)
+        {
+            return false;
+        }
+
+        if (mineModal.classList.contains("show"))
+        {
+            return true;
+        }
+
+        if ((typeof window !== "undefined") && (typeof window.getComputedStyle === "function"))
+        {
+            const computedStyle = window.getComputedStyle(mineModal);
+            if (computedStyle != null)
+            {
+                return (computedStyle.display !== "none") && (computedStyle.visibility !== "hidden") && (computedStyle.opacity !== "0");
+            }
+        }
+
+        return mineModal.style.display === "block";
+    }
+
+    static __internal__openMineModal()
+    {
+        if (typeof document === "undefined")
+        {
+            return false;
+        }
+
+        const mineModal = document.getElementById("mineModal");
+        if (mineModal == null)
+        {
+            return false;
+        }
+
+        let opened = false;
+
+        if ((typeof window !== "undefined") && (typeof window.$ === "function"))
+        {
+            const jqueryInstance = window.$;
+            if ((jqueryInstance != null) && (jqueryInstance.fn != null) && (typeof jqueryInstance.fn.modal === "function"))
+            {
+                jqueryInstance(mineModal).modal("show");
+                opened = true;
+            }
+        }
+
+        if (!opened)
+        {
+            const trigger = document.querySelector('[data-target="#mineModal"], [data-bs-target="#mineModal"]');
+            if (trigger instanceof HTMLElement)
+            {
+                trigger.click();
+                opened = true;
+            }
+        }
+
+        return opened;
+    }
+
+    static __internal__closeMineModal()
+    {
+        if (typeof document === "undefined")
+        {
+            return;
+        }
+
+        const mineModal = document.getElementById("mineModal");
+        if (mineModal == null)
+        {
+            return;
+        }
+
+        let closed = false;
+
+        if ((typeof window !== "undefined") && (typeof window.$ === "function"))
+        {
+            const jqueryInstance = window.$;
+            if ((jqueryInstance != null) && (jqueryInstance.fn != null) && (typeof jqueryInstance.fn.modal === "function"))
+            {
+                jqueryInstance(mineModal).modal("hide");
+                closed = true;
+            }
+        }
+
+        if (!closed)
+        {
+            const dismissButton =
+                mineModal.querySelector('[data-dismiss="modal"], [data-bs-dismiss="modal"], .modal-header .close, button.close');
+            if (dismissButton instanceof HTMLElement)
+            {
+                dismissButton.click();
+            }
+        }
     }
 
     /**
