@@ -221,7 +221,8 @@ class AutomationUnderground
 
         const centerMostCellCoord = { x: App.game.underground.mine.width / 2, y: App.game.underground.mine.height / 2 };
         const areAllItemFound = App.game.underground.mine.itemsPartiallyFound == App.game.underground.mine.itemsBuried;
-        const shouldUseBatteryDischarge = (Automation.Utils.LocalStorage.getValue(this.Settings.BatteryDischarge) === "true");
+        const batteryDischargeSetting = Automation.Utils.LocalStorage.getValue(this.Settings.BatteryDischarge);
+        const shouldUseBatteryDischarge = (batteryDischargeSetting !== "false");
 
         // Try to use the Survey, unless all items were already found
         if (!areAllItemFound && App.game.underground.tools.getTool(UndergroundToolType.Survey).canUseTool())
