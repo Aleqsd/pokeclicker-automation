@@ -223,6 +223,12 @@ class AutomationUnderground
         const areAllItemFound = App.game.underground.mine.itemsPartiallyFound == App.game.underground.mine.itemsBuried;
         const batteryDischargeSetting = Automation.Utils.LocalStorage.getValue(this.Settings.BatteryDischarge);
         const shouldUseBatteryDischarge = (batteryDischargeSetting !== "false");
+        const getObservableValue = function(observable)
+        {
+            return (typeof observable === "function") ? observable() : observable;
+        };
+        const currentBatteryCharges = getObservableValue(App.game.underground.battery?.charges);
+        const maxBatteryCharges = getObservableValue(App.game.underground.battery?.maxCharges);
 
         // Try to use the Survey, unless all items were already found
         if (!areAllItemFound && App.game.underground.tools.getTool(UndergroundToolType.Survey).canUseTool())
@@ -234,7 +240,8 @@ class AutomationUnderground
 
         // Try to use the battery discharge
         if (!actionOccured && shouldUseBatteryDischarge && App.game.oakItems.isActive(OakItemType.Cell_Battery)
-            && (App.game.underground.battery.charges == App.game.underground.battery.maxCharges))
+            && (currentBatteryCharges != null) && (maxBatteryCharges != null) && (maxBatteryCharges > 0)
+            && (currentBatteryCharges >= maxBatteryCharges))
         {
             App.game.underground.battery.discharge();
             actionOccured = true;
