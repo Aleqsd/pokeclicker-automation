@@ -243,8 +243,27 @@ class AutomationUnderground
             && (currentBatteryCharges != null) && (maxBatteryCharges != null) && (maxBatteryCharges > 0)
             && (currentBatteryCharges >= maxBatteryCharges))
         {
-            App.game.underground.battery.discharge();
-            actionOccured = true;
+            let dischargePerformed = false;
+            const chargesBefore = currentBatteryCharges;
+
+            if (typeof App.game.underground?.battery?.discharge === "function")
+            {
+                App.game.underground.battery.discharge();
+                const chargesAfter = getObservableValue(App.game.underground.battery?.charges);
+                dischargePerformed = (chargesAfter != null) && (chargesAfter < chargesBefore);
+            }
+
+            if (!dischargePerformed)
+            {
+                this.__internal__triggerBatteryShortcut();
+                const shortcutCharges = getObservableValue(App.game.underground.battery?.charges);
+                dischargePerformed = (shortcutCharges != null) && (shortcutCharges < chargesBefore);
+            }
+
+            if (dischargePerformed)
+            {
+                actionOccured = true;
+            }
         }
 
         // Try to use the Bomb, unless all items were already found
@@ -730,5 +749,46 @@ class AutomationUnderground
     {
         return (Automation.Utils.LocalStorage.getValue(this.Settings.SafeBombs) !== "true")
             || ((App.game.underground.mine?.itemsPartiallyFound - App.game.underground.mine?.itemsFound) == 0);
+    }
+
+    /**
+     * @brief Tries to trigger the in-game battery discharge shortcut (default 'D' key)
+     *
+     * @return True if a shortcut event was dispatched, false otherwise
+     */
+    static __internal__triggerBatteryShortcut()
+    {
+        if (typeof document === "undefined")
+        {
+            return false;
+        }
+
+        const shortcutOptions = {
+            key: "d",
+            code: "KeyD",
+            keyCode: 68,
+            which: 68,
+            bubbles: true
+        };
+
+        const downEvent = new KeyboardEvent("keydown", shortcutOptions);
+        const upEvent = new KeyboardEvent("keyup", shortcutOptions);
+
+        try
+        {
+            Object.defineProperty(downEvent, "keyCode", { get: function() { return 68; } });
+            Object.defineProperty(upEvent, "keyCode", { get: function() { return 68; } });
+            Object.defineProperty(downEvent, "which", { get: function() { return 68; } });
+            Object.defineProperty(upEvent, "which", { get: function() { return 68; } });
+        }
+        catch (err)
+        {
+            // Ignore any errors when redefining read-only properties
+        }
+
+        const dispatchTarget = document.activeElement || document.body || document;
+        dispatchTarget.dispatchEvent(downEvent);
+        dispatchTarget.dispatchEvent(upEvent);
+        return true;
     }
 }
