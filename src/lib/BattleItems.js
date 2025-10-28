@@ -73,7 +73,7 @@ class AutomationBattleItems
                       + Automation.Menu.TooltipSeparator
                       + "Advanced settings let you pick whether to refresh with x10 or x100 items.";
         const toggleButton =
-            Automation.Menu.addAutomationButton("Battle items", this.Settings.FeatureEnabled, tooltip, this.__internal__container);
+            Automation.Menu.addAutomationButton("Battle Items", this.Settings.FeatureEnabled, tooltip, this.__internal__container);
         toggleButton.addEventListener("click", this.__internal__toggleAutoBattleItems.bind(this), false);
 
         const settingsPanel = Automation.Menu.addSettingPanel(this.__internal__container);
