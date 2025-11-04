@@ -16,6 +16,7 @@ class Automation
     static Hatchery = AutomationHatchery;
     static Items = AutomationItems;
     static Notifications = AutomationNotifications;
+    static Purify = AutomationPurify;
     static Menu = AutomationMenu;
     static Shop = AutomationShop;
     static BattleItems = AutomationBattleItems;
@@ -68,6 +69,7 @@ class Automation
                     this.Click.initialize(initStep);
                     this.Focus.initialize(initStep);
                     this.Hatchery.initialize(initStep);
+                    this.Purify.initialize(initStep);
                     this.Underground.initialize(initStep);
                     this.Farm.initialize(initStep);
                     this.Shop.initialize(initStep);
