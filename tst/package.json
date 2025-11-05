@@ -3,5 +3,8 @@
     "scripts": {
         "test": "node node_modules/jest/bin/jest.js --colors --verbose"
     },
-    "type": "module"
+    "type": "module",
+    "devDependencies": {
+        "jest": "^30.2.0"
+    }
 }

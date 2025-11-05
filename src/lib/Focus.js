@@ -5,6 +5,7 @@ class AutomationFocus
 {
     // Aliases on the other classes
     static Achievements = AutomationFocusAchievements;
+    static BattleFrontier = AutomationFocusBattleFrontier;
     static Quests = AutomationFocusQuests;
     static PokerusCure = AutomationFocusPokerusCure;
     static ShadowPurification = AutomationFocusShadowPurification;
@@ -469,6 +470,7 @@ class AutomationFocus
                 refreshRateAsMs: 3000 // Refresh every 3s
             });
 
+        this.BattleFrontier.__registerFunctionalities(this.__internal__functionalities);
         this.Quests.__registerFunctionalities(this.__internal__functionalities);
         this.Achievements.__registerFunctionalities(this.__internal__functionalities);
         this.PokerusCure.__registerFunctionalities(this.__internal__functionalities);
