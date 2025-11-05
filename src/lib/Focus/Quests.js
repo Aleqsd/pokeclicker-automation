@@ -56,9 +56,12 @@ class AutomationFocusQuests
 
     static __internal__autoQuestLoop = null;
     static __internal__questLabels = {};
+    static __internal__refreshCostSaveTimeout = null;
+    static __internal__refreshCostWarningShown = false;
 
     static __internal__advancedSettings = {
-                                              QuestEnabled: function(questName) { return `Focus-${questName}-Enabled`; }
+                                              QuestEnabled: function(questName) { return `Focus-${questName}-Enabled`; },
+                                              RefreshCostLimit: "Focus-Quests-RefreshCostLimit"
                                           };
 
     /**
@@ -105,7 +108,7 @@ class AutomationFocusQuests
      */
     static __internal__buildAdvancedSettings(parent)
     {
-        const tooltip = "Skipping quests can be cost-heavy"
+        const tooltip = "Skipping quests can be cost-heavy";
         const descriptionElem = document.createElement("span");
         descriptionElem.textContent = "Choose which quest should be performed, or skipped ⚠️";
         descriptionElem.classList.add("hasAutomationTooltip");
@@ -114,6 +117,78 @@ class AutomationFocusQuests
         descriptionElem.style.cursor = "help";
         descriptionElem.setAttribute("automation-tooltip-text", tooltip);
         parent.appendChild(descriptionElem);
+
+        Automation.Utils.LocalStorage.setDefaultValue(this.__internal__advancedSettings.RefreshCostLimit, -1);
+
+        const refreshContainer = document.createElement("div");
+        refreshContainer.classList.add("automationTabSubContent");
+        refreshContainer.style.display = "flex";
+        refreshContainer.style.alignItems = "center";
+        refreshContainer.style.gap = "6px";
+        refreshContainer.style.marginTop = "8px";
+        refreshContainer.style.marginBottom = "10px";
+        refreshContainer.style.paddingLeft = "5px";
+        refreshContainer.style.paddingRight = "7px";
+        parent.appendChild(refreshContainer);
+
+        const refreshLabel = document.createElement("span");
+        refreshLabel.textContent = "Auto-refresh skipped quests while cost <= ";
+        refreshLabel.classList.add("hasAutomationTooltip");
+        refreshLabel.setAttribute("automation-tooltip-text",
+                                  "Refresh skipped quests until the reroll cost exceeds this amount.\nLeave blank for no limit.\nSet 0 to only use free refreshes.");
+        refreshContainer.appendChild(refreshLabel);
+
+        const refreshLimitInput = Automation.Menu.createTextInputElement(10, "[0-9]");
+        const storedRefreshLimit = Automation.Utils.tryParseInt(Automation.Utils.LocalStorage.getValue(this.__internal__advancedSettings.RefreshCostLimit), -1);
+        if (storedRefreshLimit >= 0)
+        {
+            refreshLimitInput.innerHTML = storedRefreshLimit;
+        }
+        refreshContainer.appendChild(refreshLimitInput);
+
+        const refreshCurrencyImage = document.createElement("img");
+        refreshCurrencyImage.src = "assets/images/currency/money.svg";
+        refreshCurrencyImage.style.height = "25px";
+        refreshContainer.appendChild(refreshCurrencyImage);
+
+        const refreshHint = document.createElement("span");
+        refreshHint.textContent = "(blank = unlimited)";
+        refreshHint.style.fontSize = "0.8em";
+        refreshHint.style.color = "#888888";
+        refreshContainer.appendChild(refreshHint);
+
+        const refreshCheckmark = Automation.Menu.createAnimatedCheckMarkElement();
+        refreshContainer.appendChild(refreshCheckmark);
+
+        refreshLimitInput.oninput = function()
+        {
+            if (this.__internal__refreshCostSaveTimeout !== null)
+            {
+                clearTimeout(this.__internal__refreshCostSaveTimeout);
+            }
+
+            this.__internal__refreshCostSaveTimeout = setTimeout(function()
+                {
+                    const rawValue = refreshLimitInput.innerText.trim();
+                    let valueToStore = -1;
+
+                    if (rawValue !== "")
+                    {
+                        valueToStore = Math.max(0, Automation.Utils.tryParseInt(rawValue, 0));
+                        refreshLimitInput.innerText = valueToStore.toString();
+                    }
+                    else
+                    {
+                        refreshLimitInput.innerText = "";
+                    }
+
+                    Automation.Utils.LocalStorage.setValue(this.__internal__advancedSettings.RefreshCostLimit, valueToStore);
+                    this.__internal__refreshCostWarningShown = false;
+                    Automation.Menu.showCheckmark(refreshCheckmark, 2000);
+
+                    this.__internal__refreshCostSaveTimeout = null;
+                }.bind(this), 1000);
+        }.bind(this);
 
         const tableContainer = document.createElement("div");
         tableContainer.classList.add("automationTabSubContent");
@@ -219,6 +294,13 @@ class AutomationFocusQuests
         // Unregister the loop
         clearInterval(this.__internal__autoQuestLoop);
         this.__internal__autoQuestLoop = null;
+
+        if (this.__internal__refreshCostSaveTimeout !== null)
+        {
+            clearTimeout(this.__internal__refreshCostSaveTimeout);
+            this.__internal__refreshCostSaveTimeout = null;
+        }
+        this.__internal__refreshCostWarningShown = false;
 
         // Reset demands
         Automation.Farm.ForcePlantBerriesAsked = null;
@@ -347,16 +429,54 @@ class AutomationFocusQuests
             return;
         }
 
-        // Make sure the player can afford the refresh
-        if (!App.game.quests.freeRefresh() && !App.game.quests.canAffordRefresh())
+        const refreshCostLimit = Automation.Utils.tryParseInt(Automation.Utils.LocalStorage.getValue(this.__internal__advancedSettings.RefreshCostLimit), -1);
+        const isRefreshFree = App.game.quests.freeRefresh();
+        const refreshCostData = isRefreshFree ? null : App.game.quests.getRefreshCost();
+        const refreshCostAmount = isRefreshFree ? 0 : Automation.Utils.tryParseInt(refreshCostData?.amount, 0);
+
+        if (!isRefreshFree)
         {
-            // Go farm some money
-            this.__internal__farmSomeMoney();
-            return;
+            if ((refreshCostLimit >= 0) && (refreshCostAmount > refreshCostLimit))
+            {
+                if (!this.__internal__refreshCostWarningShown)
+                {
+                    Automation.Notifications.sendWarningNotif(`Quest refresh cost (${refreshCostAmount}) exceeds your Focus limit (${refreshCostLimit}).`, "Focus", "Quests");
+                    this.__internal__refreshCostWarningShown = true;
+                }
+                return;
+            }
+
+            if (!App.game.quests.canAffordRefresh())
+            {
+                // Go farm some money
+                this.__internal__farmSomeMoney();
+                return;
+            }
         }
 
-        let pokedollarsImage = '<img src="assets/images/currency/money.svg" height="25px">';
-        let refreshCost = App.game.quests.freeRefresh() ? "free" : `${App.game.quests.getRefreshCost().amount} ${pokedollarsImage}`;
+        this.__internal__refreshCostWarningShown = false;
+
+        let refreshCost = "free";
+        if (!isRefreshFree)
+        {
+            let currencyKey = null;
+            if (typeof refreshCostData?.currency === "number")
+            {
+                currencyKey = GameConstants.Currency[refreshCostData.currency];
+            }
+            else if (typeof refreshCostData?.currency === "string")
+            {
+                currencyKey = refreshCostData.currency;
+            }
+
+            if (!currencyKey)
+            {
+                currencyKey = "money";
+            }
+
+            const currencyImage = `<img src="assets/images/currency/${currencyKey}.svg" height="25px">`;
+            refreshCost = `${refreshCostAmount} ${currencyImage}`;
+        }
 
         App.game.quests.refreshQuests();
 
