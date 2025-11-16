@@ -135,6 +135,7 @@ class AutomationDungeon
     static __internal__dungeonBossCatchPokeballSelectElem = null;
 
     static __internal__chestMinRarityDropdownList = null;
+    static __internal__shinyRestartLabelSpan = null;
 
     static __internal__currentCatchMode = this.__internal__CatchModes.Uncaught;
     static __internal__floorEndPosition = null;
@@ -293,8 +294,12 @@ class AutomationDungeon
                                   + "Stops the automation once the shiny Pokédex for this dungeon is complete."
                                   + Automation.Menu.TooltipSeparator
                                   + "While enabled, the standard 'Stop on Pokédex' option is ignored.";
+        const shinyRestartCountSpanId = "automation-dungeon-shiny-restart-count";
+        const shinyRestartLabel = `Restart all the shiny are captured (<span id="${shinyRestartCountSpanId}">0/0</span>)`;
         Automation.Menu.addLabeledAdvancedSettingsToggleButton(
-            "Restart until shiny Pokédex is complete", this.Settings.RestartUntilShinyDex, shinyRestartTooltip, dungeonSettingsPanel);
+            shinyRestartLabel, this.Settings.RestartUntilShinyDex, shinyRestartTooltip, dungeonSettingsPanel);
+        this.__internal__shinyRestartLabelSpan = document.getElementById(shinyRestartCountSpanId);
+        this.__internal__refreshShinyRestartLabel();
     }
 
     /**
@@ -925,6 +930,8 @@ class AutomationDungeon
      */
     static __internal__updateDivVisibilityAndContent()
     {
+        this.__internal__refreshShinyRestartLabel();
+
         this.__internal__dungeonFightButton.hidden = !((App.game.gameState === GameConstants.GameState.dungeon)
                                                        || ((App.game.gameState === GameConstants.GameState.town)
                                                            && Automation.Utils.isInstanceOf(player.town, "DungeonTown")));
@@ -1073,6 +1080,174 @@ class AutomationDungeon
         }
 
         return DungeonRunner.dungeonCompleted(currentDungeon, true);
+    }
+
+    /**
+     * @brief Updates the shiny restart label text with the current shiny progress
+     */
+    static __internal__refreshShinyRestartLabel()
+    {
+        if (!this.__internal__shinyRestartLabelSpan)
+        {
+            return;
+        }
+
+        const currentDungeon = this.__internal__getCurrentDungeon();
+        if (!currentDungeon)
+        {
+            this.__internal__shinyRestartLabelSpan.textContent = "0/0";
+            return;
+        }
+
+        const catchablePokemonList = this.__internal__getCatchablePokemonList(currentDungeon);
+        if (catchablePokemonList.length == 0)
+        {
+            this.__internal__shinyRestartLabelSpan.textContent = "0/0";
+            return;
+        }
+
+        const shinyCaughtCount = catchablePokemonList.filter((pokemonName) => this.__internal__isPokemonShinyCaught(pokemonName)).length;
+        this.__internal__shinyRestartLabelSpan.textContent = `${shinyCaughtCount}/${catchablePokemonList.length}`;
+    }
+
+    /**
+     * @brief Gets the list of pokémon that can be caught in the given dungeon
+     *
+     * Trainer-only pokémon are filtered out unless they are shadow encounters.
+     *
+     * @param dungeon: The dungeon to inspect
+     *
+     * @returns The list of catchable pokémon names
+     */
+    static __internal__getCatchablePokemonList(dungeon)
+    {
+        if (!dungeon)
+        {
+            return [];
+        }
+
+        const catchablePokemon = this.__internal__getCatchablePokemonNamesFromList(dungeon.normalEncounterList);
+        const bossList = Array.isArray(dungeon.bossList) ? dungeon.bossList : [];
+        const shadowStatusValue = GameConstants?.ShadowStatus?.Shadow ?? 1;
+
+        for (const boss of bossList)
+        {
+            if (Automation.Utils.isInstanceOf(boss, "DungeonBossPokemon"))
+            {
+                this.__internal__addPokemonToListIfNeeded(catchablePokemon, boss?.name);
+            }
+            else if (Automation.Utils.isInstanceOf(boss, "DungeonTrainer"))
+            {
+                const bossTeam = Array.isArray(boss.team) ? boss.team : [];
+                for (const pokemon of bossTeam)
+                {
+                    if (pokemon?.shadow == shadowStatusValue)
+                    {
+                        this.__internal__addPokemonToListIfNeeded(catchablePokemon, pokemon.name);
+                    }
+                }
+            }
+        }
+
+        return catchablePokemon;
+    }
+
+    /**
+     * @brief Ensures that the given pokémon name is present once in the list
+     *
+     * @param {Array} pokemonList: The list to update
+     * @param {string} pokemonName: The pokémon name to add
+     */
+    static __internal__addPokemonToListIfNeeded(pokemonList, pokemonName)
+    {
+        if (!pokemonName || pokemonList.includes(pokemonName))
+        {
+            return;
+        }
+
+        pokemonList.push(pokemonName);
+    }
+
+    /**
+     * @brief Extract the catchable pokémon from the given encounter list
+     *
+     * @param encounterList: The encounter list to parse
+     *
+     * @returns The list of catchable pokémon names
+     */
+    static __internal__getCatchablePokemonNamesFromList(encounterList)
+    {
+        if (!Array.isArray(encounterList))
+        {
+            return [];
+        }
+
+        const result = [];
+        for (const encounter of encounterList)
+        {
+            if (!encounter || encounter.shadowTrainer || encounter.mimic || encounter.hide)
+            {
+                continue;
+            }
+
+            const pokemonName = this.__internal__getPokemonNameFromEncounter(encounter);
+            this.__internal__addPokemonToListIfNeeded(result, pokemonName);
+        }
+
+        return result;
+    }
+
+    /**
+     * @brief Resolves the pokémon name from a dungeon encounter entry
+     *
+     * @param encounter: The encounter entry
+     *
+     * @returns The pokémon name, if any
+     */
+    static __internal__getPokemonNameFromEncounter(encounter)
+    {
+        if (!encounter)
+        {
+            return null;
+        }
+
+        if (typeof encounter.pokemonName === "string")
+        {
+            return encounter.pokemonName;
+        }
+
+        if (typeof encounter.pokemon === "string")
+        {
+            return encounter.pokemon;
+        }
+
+        if (typeof encounter.name === "string")
+        {
+            return encounter.name;
+        }
+
+        if (typeof encounter.pokemon === "object")
+        {
+            if (typeof encounter.pokemon.name === "string")
+            {
+                return encounter.pokemon.name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @brief Checks if the given pokémon was caught as shiny
+     *
+     * @param {string} pokemonName: The pokémon name
+     *
+     * @returns True if the pokémon shiny variant is already caught, False otherwise
+     */
+    static __internal__isPokemonShinyCaught(pokemonName)
+    {
+        const partyPokemon = App?.game?.party?.getPokemonByName?.(pokemonName);
+        return partyPokemon?.shiny === true;
     }
 
     /**
