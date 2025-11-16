@@ -8,7 +8,7 @@ install-tests:
 resolve-tests:
 	@./tst/resolve_test_imports.sh
 
-test: install-tests resolve-tests
+test: resolve-tests
 	@npm test --prefix $(TEST_PREFIX)
 	@$(MAKE) clean-tests
 

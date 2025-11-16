@@ -152,7 +152,8 @@ describe(`${AutomationTestUtils.categoryPrefix}AutomationDungeon shiny restart c
                 }
             ]
         };
-        TownList[dungeon.name] = { region: GameConstants.Region.kanto };
+        const kantoRegion = GameConstants?.Region?.kanto ?? 0;
+        TownList[dungeon.name] = { region: kantoRegion };
 
         const catchable = AutomationDungeon.__internal__getCatchablePokemonList(dungeon);
         expect(catchable).toEqual(expect.arrayContaining(["Zubat", "BossMon", "ShadowMon", "UnlockedMon"]));
