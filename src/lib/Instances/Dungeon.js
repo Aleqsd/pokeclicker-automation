@@ -9,6 +9,7 @@ class AutomationDungeon
                           BossCatchPokeballToUse: "Dungeon-BossCatchPokeballToUse",
                           AvoidEncounters: "Dungeon-AvoidEncounters",
                           SkipBoss: "Dungeon-SkipBoss",
+                          RestartUntilShinyDex: "Dungeon-RestartUntilShinyDex",
                           SelectedChestMinRarity: "Dungeon-SelectedChestMinRarity"
                       };
 
@@ -32,6 +33,7 @@ class AutomationDungeon
             // Disable encounters, chests and boss skipping by default
             Automation.Utils.LocalStorage.setDefaultValue(this.Settings.AvoidEncounters, false);
             Automation.Utils.LocalStorage.setDefaultValue(this.Settings.SkipBoss, false);
+            Automation.Utils.LocalStorage.setDefaultValue(this.Settings.RestartUntilShinyDex, false);
 
             // Set the default chest rarity to "common" (ie. pickup any chest rarity)
             const formerChestOption = "Dungeon-SkipChests";
@@ -283,6 +285,16 @@ class AutomationDungeon
                               + "It will exit the dungeon as soon as the other automation conditions are met";
         Automation.Menu.addLabeledAdvancedSettingsToggleButton(
             "Skip the boss fight", this.Settings.SkipBoss, skipBossTooltip, dungeonSettingsPanel);
+
+        // Add the shiny restart button
+        const shinyRestartTooltip = "Keeps restarting the current dungeon until every pokémon that can appear in it"
+                                  + " has been caught as shiny."
+                                  + Automation.Menu.TooltipSeparator
+                                  + "Stops the automation once the shiny Pokédex for this dungeon is complete."
+                                  + Automation.Menu.TooltipSeparator
+                                  + "While enabled, the standard 'Stop on Pokédex' option is ignored.";
+        Automation.Menu.addLabeledAdvancedSettingsToggleButton(
+            "Restart until shiny Pokédex is complete", this.Settings.RestartUntilShinyDex, shinyRestartTooltip, dungeonSettingsPanel);
     }
 
     /**
@@ -475,18 +487,31 @@ class AutomationDungeon
             && App.game.keyItems.hasKeyItem(KeyItemType.Dungeon_ticket)
             && (App.game.wallet.currencies[GameConstants.Currency.dungeonToken]() >= player.town.dungeon.tokenCost))
         {
+            const stopOnPokedex = (Automation.Utils.LocalStorage.getValue(this.Settings.StopOnPokedex) === "true");
+            const restartUntilShiny = (Automation.Utils.LocalStorage.getValue(this.Settings.RestartUntilShinyDex) === "true");
+            const shouldStopOnStandardCompletion = stopOnPokedex
+                                                && !restartUntilShiny
+                                                && this.__internal__isDungeonCompleted();
+            const shouldStopOnShinyCompletion = restartUntilShiny && this.__internal__isDungeonShinyCompleted();
+
             // Reset button status if either:
             //    - it was requested by another module
             //    - the pokedex is full for this dungeon, and it has been ask for
             if (this.__internal__stopAfterThisRun
                 || (!forceDungeonProcessing
                     && (this.__internal__playerActionOccured
-                        || ((Automation.Utils.LocalStorage.getValue(this.Settings.StopOnPokedex) === "true")
-                            && this.__internal__isDungeonCompleted()))))
+                        || shouldStopOnStandardCompletion
+                        || shouldStopOnShinyCompletion)))
             {
                 if (this.__internal__playerActionOccured)
                 {
                     Automation.Notifications.sendWarningNotif("User action detected, turning off the automation", "Dungeon");
+                }
+                else if (shouldStopOnShinyCompletion)
+                {
+                    const dungeonName = player?.town?.name ?? "Dungeon";
+                    const message = `All shiny pokémon have been caught in ${dungeonName}. Stopping the dungeon loop.`;
+                    Automation.Notifications.sendNotif(message, "Dungeon");
                 }
 
                 Automation.Menu.forceAutomationState(this.Settings.FeatureEnabled, false);
@@ -895,6 +920,7 @@ class AutomationDungeon
      * The 'Auto Fight' button is disabled in the following cases:
      *   - The player did not buy the Dungeon ticket yet
      *   - The user enabled 'Stop on Pokedex' and all pokemon in the dungeon are already caught
+     *   - The shiny restart option is enabled and all shiny pokémon in the dungeon are already caught
      *   - The player does not have enough dungeon token to enter
      */
     static __internal__updateDivVisibilityAndContent()
@@ -905,6 +931,10 @@ class AutomationDungeon
 
         if (!this.__internal__dungeonFightButton.hidden)
         {
+            const restartUntilShiny = (Automation.Utils.LocalStorage.getValue(this.Settings.RestartUntilShinyDex) === "true");
+            const stopOnPokedexEnabled = (Automation.Utils.LocalStorage.getValue(this.Settings.StopOnPokedex) == "true")
+                                       && !restartUntilShiny;
+
             // Disable the Auto Fight button if the requirements are not met
             let disableNeeded = false;
             let disableReason = "";
@@ -922,7 +952,7 @@ class AutomationDungeon
                 // The 'stop on pokedex' feature might be enable and the pokedex already completed
                 if ((this.AutomationRequestedMode != this.InternalModes.ForceDungeonCompletion)
                     && (this.AutomationRequestedMode != this.InternalModes.ForcePokemonFight)
-                    && (Automation.Utils.LocalStorage.getValue(this.Settings.StopOnPokedex) == "true")
+                    && stopOnPokedexEnabled
                     && this.__internal__isDungeonCompleted())
                 {
                     disableNeeded = true;
@@ -939,6 +969,12 @@ class AutomationDungeon
                     }
 
                     disableReason += "pokémons are already caught,\nand the option to stop in this case is enabled";
+                }
+                else if (restartUntilShiny && this.__internal__isDungeonShinyCompleted())
+                {
+                    disableNeeded = true;
+                    disableReason += (disableReason !== "") ? "\nAnd all " : "All ";
+                    disableReason += "shiny pokémons are already caught,\nand the shiny restart option is enabled";
                 }
 
                 // The player does not have enough dungeon token
@@ -979,13 +1015,40 @@ class AutomationDungeon
     }
 
     /**
+     * @brief Returns the dungeon currently targeted by the automation
+     *
+     * @returns The current dungeon instance, or null if none is available
+     */
+    static __internal__getCurrentDungeon()
+    {
+        if (App?.game?.gameState === GameConstants.GameState.dungeon)
+        {
+            return DungeonRunner?.dungeon ?? null;
+        }
+
+        if ((App?.game?.gameState === GameConstants.GameState.town)
+            && player?.town
+            && Automation.Utils.isInstanceOf(player.town, "DungeonTown"))
+        {
+            return player.town.dungeon;
+        }
+
+        return null;
+    }
+
+    /**
      * @brief Ensures that the current dungeon objectives are completed
      *
      * @returns True if the dungeon objectives are completed, False otherwise
      */
     static __internal__isDungeonCompleted()
     {
-        const currentDungeon = player.town.dungeon;
+        const currentDungeon = this.__internal__getCurrentDungeon();
+        if (!currentDungeon)
+        {
+            return false;
+        }
+
         if (this.__internal__currentCatchMode.shadow
             && currentDungeon.allAvailableShadowPokemon().some(
                 p => App.game.party.getPokemonByName(p)?.shadow < GameConstants.ShadowStatus.Shadow))
@@ -994,6 +1057,22 @@ class AutomationDungeon
         }
 
         return DungeonRunner.dungeonCompleted(currentDungeon, this.__internal__currentCatchMode.shiny);
+    }
+
+    /**
+     * @brief Checks if the shiny Pokédex for the current dungeon is complete
+     *
+     * @returns True if every dungeon pokémon has been caught as shiny, False otherwise
+     */
+    static __internal__isDungeonShinyCompleted()
+    {
+        const currentDungeon = this.__internal__getCurrentDungeon();
+        if (!currentDungeon)
+        {
+            return false;
+        }
+
+        return DungeonRunner.dungeonCompleted(currentDungeon, true);
     }
 
     /**
