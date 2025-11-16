@@ -127,6 +127,8 @@ describe(`${AutomationTestUtils.categoryPrefix}AutomationDungeon shiny restart c
 
     test("getCatchablePokemonList filters encounter types that cannot be caught", () =>
     {
+        const lockedRequirement = { isCompleted: jest.fn().mockReturnValue(false) };
+        const unlockedRequirement = { isCompleted: jest.fn().mockReturnValue(true) };
         const dungeon = {
             name: "Shiny Cavern",
             normalEncounterList: [
@@ -134,10 +136,13 @@ describe(`${AutomationTestUtils.categoryPrefix}AutomationDungeon shiny restart c
                 { pokemonName: "HiddenMon", hide: true },
                 { pokemonName: "TrainerOnly", shadowTrainer: true },
                 { pokemonName: "TrickyMon", mimic: true },
+                { pokemonName: "LockedMon", options: { requirement: lockedRequirement } },
+                { pokemonName: "UnlockedMon", options: { requirement: unlockedRequirement } },
                 { __className: "DungeonTrainer", name: "TrainerGuy" }
             ],
             bossList: [
                 { __className: "DungeonBossPokemon", name: "BossMon" },
+                { __className: "DungeonBossPokemon", name: "LockedBoss", options: { requirement: lockedRequirement } },
                 {
                     __className: "DungeonTrainer",
                     team: [
@@ -147,10 +152,19 @@ describe(`${AutomationTestUtils.categoryPrefix}AutomationDungeon shiny restart c
                 }
             ]
         };
+        TownList[dungeon.name] = { region: GameConstants.Region.kanto };
 
         const catchable = AutomationDungeon.__internal__getCatchablePokemonList(dungeon);
-        expect(catchable).toEqual(expect.arrayContaining(["Zubat", "BossMon", "ShadowMon"]));
-        expect(catchable).not.toEqual(expect.arrayContaining(["HiddenMon", "TrainerOnly", "TrickyMon", "TrainerMon", "TrainerGuy"]));
+        expect(catchable).toEqual(expect.arrayContaining(["Zubat", "BossMon", "ShadowMon", "UnlockedMon"]));
+        expect(catchable).not.toEqual(expect.arrayContaining([
+            "HiddenMon",
+            "TrainerOnly",
+            "TrickyMon",
+            "TrainerMon",
+            "TrainerGuy",
+            "LockedBoss",
+            "LockedMon"
+        ]));
     });
 
     test("refreshShinyRestartLabel reports the captured shiny ratio", () =>

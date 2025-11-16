@@ -1126,7 +1126,8 @@ class AutomationDungeon
             return [];
         }
 
-        const catchablePokemon = this.__internal__getCatchablePokemonNamesFromList(dungeon.normalEncounterList);
+        const dungeonRegion = TownList?.[dungeon.name]?.region;
+        const catchablePokemon = this.__internal__getCatchablePokemonNamesFromList(dungeon.normalEncounterList, dungeonRegion);
         const bossList = Array.isArray(dungeon.bossList) ? dungeon.bossList : [];
         const shadowStatusValue = GameConstants?.ShadowStatus?.Shadow ?? 1;
 
@@ -1134,10 +1135,20 @@ class AutomationDungeon
         {
             if (Automation.Utils.isInstanceOf(boss, "DungeonBossPokemon"))
             {
+                if (!this.__internal__isEncounterAvailable(boss, dungeonRegion))
+                {
+                    continue;
+                }
+
                 this.__internal__addPokemonToListIfNeeded(catchablePokemon, boss?.name);
             }
             else if (Automation.Utils.isInstanceOf(boss, "DungeonTrainer"))
             {
+                if (!this.__internal__isEncounterAvailable(boss, dungeonRegion))
+                {
+                    continue;
+                }
+
                 const bossTeam = Array.isArray(boss.team) ? boss.team : [];
                 for (const pokemon of bossTeam)
                 {
@@ -1170,12 +1181,12 @@ class AutomationDungeon
 
     /**
      * @brief Extract the catchable pokémon from the given encounter list
-     *
+     * @param dungeonRegion: The region the dungeon belongs to
      * @param encounterList: The encounter list to parse
      *
      * @returns The list of catchable pokémon names
      */
-    static __internal__getCatchablePokemonNamesFromList(encounterList)
+    static __internal__getCatchablePokemonNamesFromList(encounterList, dungeonRegion)
     {
         if (!Array.isArray(encounterList))
         {
@@ -1189,7 +1200,8 @@ class AutomationDungeon
                 || Automation.Utils.isInstanceOf(encounter, "DungeonTrainer")
                 || encounter.shadowTrainer
                 || encounter.mimic
-                || encounter.hide)
+                || encounter.hide
+                || !this.__internal__isEncounterAvailable(encounter, dungeonRegion))
             {
                 continue;
             }
@@ -1252,6 +1264,63 @@ class AutomationDungeon
     {
         const partyPokemon = App?.game?.party?.getPokemonByName?.(pokemonName);
         return partyPokemon?.shiny === true;
+    }
+
+    /**
+     * @brief Checks if the provided encounter can currently appear in the dungeon
+     *
+     * @param encounter: The encounter or boss entry to inspect
+     * @param dungeonRegion: The region the dungeon belongs to
+     */
+    static __internal__isEncounterAvailable(encounter, dungeonRegion)
+    {
+        const requirement = encounter?.options?.requirement
+                         ?? encounter?.requirement
+                         ?? encounter?.req;
+
+        return this.__internal__isRequirementCompleted(requirement, dungeonRegion);
+    }
+
+    /**
+     * @brief Determines if the given requirement is met within the provided region context
+     *
+     * @param requirement: The requirement instance to evaluate
+     * @param dungeonRegion: The region the dungeon belongs to
+     *
+     * @returns True if the requirement is completed or undefined, false otherwise
+     */
+    static __internal__isRequirementCompleted(requirement, dungeonRegion)
+    {
+        if (!requirement)
+        {
+            return true;
+        }
+
+        const requirements = Automation.Utils.isInstanceOf(requirement, "MultiRequirement")
+            ? requirement.requirements
+            : [ requirement ];
+
+        for (const req of requirements)
+        {
+            if (Automation.Utils.isInstanceOf(req, "WeatherRequirement")
+                && (dungeonRegion != undefined)
+                && Weather?.regionalWeather?.[dungeonRegion])
+            {
+                if (!req.weather?.includes(Weather.regionalWeather[dungeonRegion]()))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            if (!req?.isCompleted?.())
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
