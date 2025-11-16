@@ -1185,7 +1185,11 @@ class AutomationDungeon
         const result = [];
         for (const encounter of encounterList)
         {
-            if (!encounter || encounter.shadowTrainer || encounter.mimic || encounter.hide)
+            if (!encounter
+                || Automation.Utils.isInstanceOf(encounter, "DungeonTrainer")
+                || encounter.shadowTrainer
+                || encounter.mimic
+                || encounter.hide)
             {
                 continue;
             }

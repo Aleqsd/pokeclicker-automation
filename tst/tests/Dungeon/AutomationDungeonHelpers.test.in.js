@@ -133,7 +133,8 @@ describe(`${AutomationTestUtils.categoryPrefix}AutomationDungeon shiny restart c
                 { pokemonName: "Zubat" },
                 { pokemonName: "HiddenMon", hide: true },
                 { pokemonName: "TrainerOnly", shadowTrainer: true },
-                { pokemonName: "TrickyMon", mimic: true }
+                { pokemonName: "TrickyMon", mimic: true },
+                { __className: "DungeonTrainer", name: "TrainerGuy" }
             ],
             bossList: [
                 { __className: "DungeonBossPokemon", name: "BossMon" },
@@ -149,7 +150,7 @@ describe(`${AutomationTestUtils.categoryPrefix}AutomationDungeon shiny restart c
 
         const catchable = AutomationDungeon.__internal__getCatchablePokemonList(dungeon);
         expect(catchable).toEqual(expect.arrayContaining(["Zubat", "BossMon", "ShadowMon"]));
-        expect(catchable).not.toEqual(expect.arrayContaining(["HiddenMon", "TrainerOnly", "TrickyMon", "TrainerMon"]));
+        expect(catchable).not.toEqual(expect.arrayContaining(["HiddenMon", "TrainerOnly", "TrickyMon", "TrainerMon", "TrainerGuy"]));
     });
 
     test("refreshShinyRestartLabel reports the captured shiny ratio", () =>
