@@ -167,6 +167,25 @@ describe(`${AutomationTestUtils.categoryPrefix}AutomationDungeon shiny restart c
         ]));
     });
 
+    test("getCatchablePokemonList leverages the dungeon availability helper when present", () =>
+    {
+        const dungeon = {
+            name: "Helper Cavern",
+            allAvailablePokemon: jest.fn().mockReturnValue([
+                "Zubat",
+                { pokemonName: "BossMon" },
+                { pokemon: { name: "ShadowMon" } },
+                null,
+                "Zubat"
+            ])
+        };
+
+        const catchable = AutomationDungeon.__internal__getCatchablePokemonList(dungeon);
+
+        expect(dungeon.allAvailablePokemon).toHaveBeenCalledWith(true);
+        expect(catchable).toEqual(["Zubat", "BossMon", "ShadowMon"]);
+    });
+
     test("refreshShinyRestartLabel reports the captured shiny ratio", () =>
     {
         const dungeon = {

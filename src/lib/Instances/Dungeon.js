@@ -295,7 +295,7 @@ class AutomationDungeon
                                   + Automation.Menu.TooltipSeparator
                                   + "While enabled, the standard 'Stop on Pokédex' option is ignored.";
         const shinyRestartCountSpanId = "automation-dungeon-shiny-restart-count";
-        const shinyRestartLabel = `Restart all the shiny are captured (<span id="${shinyRestartCountSpanId}">0/0</span>)`;
+        const shinyRestartLabel = `Restart until all the shiny are captured (<span id="${shinyRestartCountSpanId}">0/0</span>)`;
         Automation.Menu.addLabeledAdvancedSettingsToggleButton(
             shinyRestartLabel, this.Settings.RestartUntilShinyDex, shinyRestartTooltip, dungeonSettingsPanel);
         this.__internal__shinyRestartLabelSpan = document.getElementById(shinyRestartCountSpanId);
@@ -1126,6 +1126,20 @@ class AutomationDungeon
             return [];
         }
 
+        const availablePokemon = this.__internal__getPokemonNamesFromDungeonAvailability(dungeon);
+        if (availablePokemon)
+        {
+            return availablePokemon;
+        }
+
+        return this.__internal__getCatchablePokemonListFallback(dungeon);
+    }
+
+    /**
+     * @brief Builds the catchable list when the dungeon cannot report its availability
+     */
+    static __internal__getCatchablePokemonListFallback(dungeon)
+    {
         const dungeonRegion = TownList?.[dungeon.name]?.region;
         const catchablePokemon = this.__internal__getCatchablePokemonNamesFromList(dungeon.normalEncounterList, dungeonRegion);
         const bossList = Array.isArray(dungeon.bossList) ? dungeon.bossList : [];
@@ -1158,6 +1172,43 @@ class AutomationDungeon
                     }
                 }
             }
+        }
+
+        return catchablePokemon;
+    }
+
+    /**
+     * @brief Uses the dungeon availability helper when present to extract catchable pokémon
+     *
+     * @returns The pokémon list, or null if unavailable
+     */
+    static __internal__getPokemonNamesFromDungeonAvailability(dungeon)
+    {
+        if (typeof dungeon.allAvailablePokemon !== "function")
+        {
+            return null;
+        }
+
+        let availablePokemonList;
+        try
+        {
+            availablePokemonList = dungeon.allAvailablePokemon(true);
+        }
+        catch (error)
+        {
+            return null;
+        }
+
+        if (!Array.isArray(availablePokemonList))
+        {
+            return null;
+        }
+
+        const catchablePokemon = [];
+        for (const encounter of availablePokemonList)
+        {
+            const pokemonName = this.__internal__getPokemonNameFromEncounter(encounter);
+            this.__internal__addPokemonToListIfNeeded(catchablePokemon, pokemonName);
         }
 
         return catchablePokemon;
@@ -1225,6 +1276,11 @@ class AutomationDungeon
         if (!encounter)
         {
             return null;
+        }
+
+        if (typeof encounter === "string")
+        {
+            return encounter;
         }
 
         if (typeof encounter.pokemonName === "string")
