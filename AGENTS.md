@@ -7,6 +7,7 @@ The Tampermonkey entry point lives in `Automation-UserScript.js`, which bootstra
 - `npm install --prefix tst`: set up Jest and related tooling inside the dedicated test workspace.
 - `./tst/resolve_test_imports.sh`: expand `.test.in.js` fixtures into runnable `.test.js` files; rerun after changing imports.
 - `npm test --prefix tst`: execute the Jest suite with verbose output once the import resolver has run.
+- `make test`: convenience wrapper that installs the test workspace, resolves imports, runs Jest, and cleans up the generated `.test.js` artifacts.
 - Browser smoke test: load `Automation-UserScript.js` in Tampermonkey and point `releaseLabel` at your branch for manual verification.
 
 ## Coding Style & Naming Conventions
@@ -14,6 +15,7 @@ JavaScript modules follow four-space indentation with Allman-style braces. Class
 
 ## Testing Guidelines
 Jest drives the suite, relying on the browser and game stubs within `tst/stubs/`. Tests mirror runtime areas via `.test.in.js` naming; create new specs with that suffix so the resolver can inline shared imports. Favour deterministic timers (`jest.useFakeTimers`) to keep automation loops predictable. High-value paths—farm unlocks, hatchery cycles, underground routines—should carry regression coverage; backfill tests when altering automation heuristics or changing DOM contract assumptions. After generating `.test.js` files, clean them (`git checkout -- tst/tests/*.test.js`) before committing to avoid noise.
+Always run `make test` (or the equivalent setup/resolve/test steps) to confirm changes do not introduce regressions.
 
 ## Commit & Pull Request Guidelines
 Existing history uses `Area: short imperative summary (issue #123)` messages; match that style and include the issue reference when applicable. Commits should remain scoped to one automation feature or bug fix so users can cherry-pick patches. Pull requests need a concise problem statement, a bullet summary of changes, and either reproduction steps or Tampermonkey screenshots when UI toggles move. Confirm the Jest suite passes and call out any manual verification performed so reviewers can prioritise their testing.
