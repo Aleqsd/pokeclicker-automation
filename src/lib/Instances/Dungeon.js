@@ -8,7 +8,6 @@ class AutomationDungeon
                           StopOnPokedex: "Dungeon-FightStopOnPokedex",
                           BossCatchPokeballToUse: "Dungeon-BossCatchPokeballToUse",
                           AvoidEncounters: "Dungeon-AvoidEncounters",
-                          RushBoss: "Dungeon-RushBoss",
                           SkipBoss: "Dungeon-SkipBoss",
                           SelectedChestMinRarity: "Dungeon-SelectedChestMinRarity"
                       };
@@ -30,9 +29,8 @@ class AutomationDungeon
     {
         if (initStep == Automation.InitSteps.BuildMenu)
         {
-            // Disable encounters, boss rushing and boss skipping by default
+            // Disable encounters, chests and boss skipping by default
             Automation.Utils.LocalStorage.setDefaultValue(this.Settings.AvoidEncounters, false);
-            Automation.Utils.LocalStorage.setDefaultValue(this.Settings.RushBoss, false);
             Automation.Utils.LocalStorage.setDefaultValue(this.Settings.SkipBoss, false);
 
             // Set the default chest rarity to "common" (ie. pickup any chest rarity)
@@ -285,13 +283,6 @@ class AutomationDungeon
                               + "It will exit the dungeon as soon as the other automation conditions are met";
         Automation.Menu.addLabeledAdvancedSettingsToggleButton(
             "Skip the boss fight", this.Settings.SkipBoss, skipBossTooltip, dungeonSettingsPanel);
-
-        // Add the rush boss button
-        const rushBossTooltip = "When the boss becomes visible, stop exploring the remaining tiles."
-                              + Automation.Menu.TooltipSeparator
-                              + "Any discovered chests will be collected right before starting the boss fight.";
-        Automation.Menu.addLabeledAdvancedSettingsToggleButton(
-            "Rush the boss when found", this.Settings.RushBoss, rushBossTooltip, dungeonSettingsPanel);
     }
 
     /**
@@ -467,9 +458,6 @@ class AutomationDungeon
         const skipChests = (this.__internal__chestMinRarityDropdownList.selectedValue == this.__internal__chestTypes.skipall);
         const skipBoss = (Automation.Utils.LocalStorage.getValue(this.Settings.SkipBoss) === "true")
                       && !forceDungeonProcessing;
-        const rushBoss = (Automation.Utils.LocalStorage.getValue(this.Settings.RushBoss) === "true")
-                      && !skipBoss
-                      && (this.AutomationRequestedMode == this.InternalModes.None);
 
         // Just to be safe, it should never happen, since the button should have been disabled
         if (avoidFights && skipChests && skipBoss)
@@ -540,24 +528,18 @@ class AutomationDungeon
             const visibleEnemiesCount = flatBoard.filter((tile) => tile.isVisible && (tile.type() === GameConstants.DungeonTileType.enemy)).length;
             const discoveredChestsLeftToOpenCount = this.__internal__chestPositions.length;
             const foundFloorEndTile = this.__internal__floorEndPosition != null;
-            const shouldRushBoss = rushBoss
-                                && foundFloorEndTile
-                                && (this.__internal__floorEndPosition.tile.type() === GameConstants.DungeonTileType.boss);
             // Check if all relevant tiles have been explored for each category
             // Either we are skipping fights, or all fights are won
-            const areAllBattleDefeated = shouldRushBoss
-                                      || avoidFights
-                                      || (visibleEnemiesCount === (DungeonRunner.map.totalFights() - DungeonRunner.encountersWon()));
+            const areAllBattleDefeated = avoidFights || (visibleEnemiesCount === (DungeonRunner.map.totalFights() - DungeonRunner.encountersWon()));
             // Either we are skipping chests, or all remaining chests are visible
-            const areAllChestsCollected = shouldRushBoss
-                                       || (discoveredChestsLeftToOpenCount === this.__internal__getChestLeftToOpenCount())
+            const areAllChestsCollected = (discoveredChestsLeftToOpenCount === this.__internal__getChestLeftToOpenCount())
                                        || (foundFloorEndTile && !DungeonRunner.map.flash && avoidFights);
 
             // If all conditions are met, or all cells are visible clean up the map and move on
             // If all cells are visible, advance even if not all objectives are met, because there might be more on the next floor
             if ((nonVisibleTiles.length === 0) || (areAllBattleDefeated && areAllChestsCollected && (skipBoss || foundFloorEndTile)))
             {
-                if (!shouldRushBoss && !avoidFights && (visibleEnemiesCount > 0))
+                if (!avoidFights && (visibleEnemiesCount > 0))
                 {
                     // There are some enemies left to fight, the rest of the loop will handle them
                 }
@@ -880,13 +862,7 @@ class AutomationDungeon
             }
         }
 
-        const allowPartialExploration = (Automation.Utils.LocalStorage.getValue(this.Settings.RushBoss) === "true")
-                                      && (Automation.Utils.LocalStorage.getValue(this.Settings.SkipBoss) !== "true")
-                                      && (this.AutomationRequestedMode == this.InternalModes.None)
-                                      && (this.__internal__floorEndPosition != null)
-                                      && (this.__internal__floorEndPosition.tile.type() === GameConstants.DungeonTileType.boss);
-
-        if (!this.__internal__isFirstMove && !allowPartialExploration)
+        if (!this.__internal__isFirstMove)
         {
             // Consider that an action occured is there is any not-visited cell in the room
             this.__internal__playerActionOccured = this.__internal__playerActionOccured
